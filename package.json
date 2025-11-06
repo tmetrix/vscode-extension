@@ -1,0 +1,81 @@
+{
+  "name": "tmetrix",
+  "displayName": "TMetrix - Time Tracking",
+  "description": "Track your coding time automatically",
+  "version": "0.1.0",
+  "publisher": "tmetrix",
+  "author": "TMetrix Team",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tmetrix"
+  },
+  "bugs": {
+    "url": "https://github.com/tmetrix/issues"
+  },
+  "homepage": "https://github.com/tmetrix#readme",
+  "keywords": [
+    "time tracking",
+    "productivity",
+    "analytics",
+    "coding time",
+    "developer tools",
+    "metrics"
+  ],
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tmetrix.setApiKey",
+        "title": "TMetrix: Set API Key"
+      }
+    ],
+    "configuration": {
+      "title": "TMetrix",
+      "properties": {
+        "tmetrix.apiEndpoint": {
+          "type": "string",
+          "default": "http://144.31.69.55:9898",
+          "description": "TMetrix API server endpoint URL"
+        },
+        "tmetrix.inactivityThreshold": {
+          "type": "number",
+          "default": 5,
+          "description": "Inactivity threshold in seconds before stopping time tracking"
+        },
+        "tmetrix.loggingInterval": {
+          "type": "number",
+          "default": 60,
+          "description": "Interval in seconds for sending activity data to server"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.105.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^9.34.0",
+    "typescript": "^5.9.2",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
