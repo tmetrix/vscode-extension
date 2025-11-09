@@ -2,6 +2,12 @@
 
 All notable changes to the TMetrix extension will be documented in this file.
 
+## [0.1.1] - 2025-11-10
+
+### Fixed
+- Prompting api key
+
+
 ## [0.1.0] - 2025-11-06
 
 ### Added
@@ -26,4 +32,3 @@ All notable changes to the TMetrix extension will be documented in this file.
 - Automatic project creation on TMetrix server if not found
 - Workspace-level project ID storage
 - Global API key storage
-
