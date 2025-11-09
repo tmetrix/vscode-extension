@@ -41,11 +41,10 @@ const path = __importStar(require("path"));
 const child_process_1 = require("child_process");
 const PROJECT_ID_STORAGE_KEY = 'tmetrix.projectId';
 const API_KEY_STORAGE_KEY = 'tmetrix.apiKey';
-// Module-level variable to store the project's UUID
-let project_uuid = null;
-let api_key = null;
 const vsconfig = vscode.workspace.getConfiguration('tmetrix');
 const apiEndpoint = vsconfig.get('apiEndpoint') || 'http://localhost:9898';
+let project_uuid = null;
+let api_key = null;
 async function getProjectDetails(fileUri) {
     let searchStartPath = path.dirname(fileUri.fsPath);
     const projectMarkers = ['package.json', 'pyproject.toml', 'pom.xml', 'Cargo.toml'];
@@ -95,33 +94,13 @@ function setProjectId(context, uuid) {
     context.workspaceState.update(PROJECT_ID_STORAGE_KEY, uuid);
 }
 async function getApiKey(context) {
-    // Check if API key is already in memory
     if (api_key) {
         return api_key;
     }
-    // Check if API key is in storage
     const storedKey = context.globalState.get(API_KEY_STORAGE_KEY);
     if (storedKey) {
         api_key = storedKey;
         return storedKey;
-    }
-    // Prompt user for API key
-    const inputKey = await vscode.window.showInputBox({
-        prompt: 'Enter your TMetrix API Key',
-        password: true,
-        placeHolder: 'API Key',
-        ignoreFocusOut: true,
-        validateInput: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'API Key cannot be empty';
-            }
-            return null;
-        }
-    });
-    if (inputKey) {
-        api_key = inputKey.trim();
-        await context.globalState.update(API_KEY_STORAGE_KEY, api_key);
-        return api_key;
     }
     return null;
 }
@@ -285,7 +264,6 @@ async function sendActivityRequest(projectId, seconds, file, outputChannel) {
 async function activate(context) {
     const outputChannel = vscode.window.createOutputChannel("TMetrix");
     outputChannel.appendLine('TMetrix extension is now active!');
-    // Get API key first
     const key = await getApiKey(context);
     if (!key) {
         vscode.window.showErrorMessage('TMetrix: API Key is required to use this extension');
@@ -293,10 +271,8 @@ async function activate(context) {
     }
     outputChannel.appendLine('TMetrix: API Key loaded successfully');
     await initializeProject(context, outputChannel);
-    // Get configuration values
-    const config = vscode.workspace.getConfiguration('tmetrix');
-    const inactivityThreshold = (config.get('inactivityThreshold') || 5) * 1000; // Convert to milliseconds
-    const loggingInterval = (config.get('loggingInterval') || 60) * 1000; // Convert to milliseconds
+    const inactivityThreshold = (vsconfig.get('inactivityThreshold') || 5) * 1000; // Convert to milliseconds
+    const loggingInterval = (vsconfig.get('loggingInterval') || 60) * 1000; // Convert to milliseconds
     let codingSeconds = 0;
     let lastActivityTimestamp = Date.now();
     let isActive = false;
@@ -312,7 +288,7 @@ async function activate(context) {
             else {
                 outputChannel.appendLine(`[TMETRIX] No project UUID, cannot send activity request  for ${currentFile}.`);
             }
-            codingSeconds = 0; // Reset after logging
+            codingSeconds = 0;
         }
     };
     const stopTimer = () => {
