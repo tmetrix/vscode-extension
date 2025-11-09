@@ -264,9 +264,36 @@ async function sendActivityRequest(projectId, seconds, file, outputChannel) {
 async function activate(context) {
     const outputChannel = vscode.window.createOutputChannel("TMetrix");
     outputChannel.appendLine('TMetrix extension is now active!');
+    // Register command to set API key BEFORE checking if key exists
+    // This allows users to set the key even if it's not set yet
+    const setApiKeyCommand = vscode.commands.registerCommand('tmetrix.setApiKey', async () => {
+        const inputKey = await vscode.window.showInputBox({
+            prompt: 'Enter your TMetrix API Key',
+            password: true,
+            placeHolder: 'API Key',
+            ignoreFocusOut: true,
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'API Key cannot be empty';
+                }
+                return null;
+            }
+        });
+        if (inputKey) {
+            api_key = inputKey.trim();
+            await context.globalState.update(API_KEY_STORAGE_KEY, api_key);
+            vscode.window.showInformationMessage('TMetrix: API Key has been saved successfully! Please reload the window to activate tracking.');
+            // Offer to reload the window
+            const reload = await vscode.window.showInformationMessage('Reload window to start tracking?', 'Reload', 'Later');
+            if (reload === 'Reload') {
+                vscode.commands.executeCommand('workbench.action.reloadWindow');
+            }
+        }
+    });
+    context.subscriptions.push(setApiKeyCommand);
     const key = await getApiKey(context);
     if (!key) {
-        vscode.window.showErrorMessage('TMetrix: API Key is required to use this extension');
+        vscode.window.showErrorMessage('TMetrix: API Key is required. Please run "TMetrix: Set API Key" command.');
         return;
     }
     outputChannel.appendLine('TMetrix: API Key loaded successfully');
@@ -368,27 +395,6 @@ async function activate(context) {
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(onDidChangeTextDocument));
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(onDidChangeActiveTextEditor));
     context.subscriptions.push(vscode.window.onDidChangeWindowState(onDidChangeWindowState));
-    // Register command to set API key
-    const setApiKeyCommand = vscode.commands.registerCommand('tmetrix.setApiKey', async () => {
-        const inputKey = await vscode.window.showInputBox({
-            prompt: 'Enter your TMetrix API Key',
-            password: true,
-            placeHolder: 'API Key',
-            ignoreFocusOut: true,
-            validateInput: (value) => {
-                if (!value || value.trim().length === 0) {
-                    return 'API Key cannot be empty';
-                }
-                return null;
-            }
-        });
-        if (inputKey) {
-            api_key = inputKey.trim();
-            await context.globalState.update(API_KEY_STORAGE_KEY, api_key);
-            vscode.window.showInformationMessage('TMetrix: API Key has been saved successfully!');
-        }
-    });
-    context.subscriptions.push(setApiKeyCommand);
     context.subscriptions.push({
         dispose: () => {
             stopTimer();
