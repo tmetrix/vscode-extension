@@ -252,7 +252,7 @@ async function sendActivityRequest(projectId, seconds, file, outputChannel) {
                 seconds: Math.round(seconds),
                 file: file,
                 editor: "vscode",
-                os: os
+                system: os
             })
         });
         outputChannel.appendLine(`[TMETRIX API] Activity request for ${file} status: ${response.status}`);
