@@ -2,6 +2,11 @@
 
 All notable changes to the TMetrix extension will be documented in this file.
 
+## [0.1.2] - 2025-11-16
+
+### Fixed
+- Send activity request
+
 ## [0.1.1] - 2025-11-10
 
 ### Fixed

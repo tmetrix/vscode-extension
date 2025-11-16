@@ -247,7 +247,7 @@ async function sendActivityRequest(projectId: string, seconds: number, file: str
                 seconds: Math.round(seconds),
                 file: file,
                 editor: "vscode",
-                os: os
+                system: os
             })
         });
 
