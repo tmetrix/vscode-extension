@@ -42,7 +42,7 @@ const child_process_1 = require("child_process");
 const PROJECT_ID_STORAGE_KEY = 'tmetrix.projectId';
 const API_KEY_STORAGE_KEY = 'tmetrix.apiKey';
 const vsconfig = vscode.workspace.getConfiguration('tmetrix');
-const apiEndpoint = vsconfig.get('apiEndpoint') || 'http://localhost:9898';
+const apiEndpoint = 'http://localhost:9898';
 let project_uuid = null;
 let api_key = null;
 async function getProjectDetails(fileUri) {
@@ -300,35 +300,123 @@ async function activate(context) {
     await initializeProject(context, outputChannel);
     const inactivityThreshold = (vsconfig.get('inactivityThreshold') || 5) * 1000; // Convert to milliseconds
     const loggingInterval = (vsconfig.get('loggingInterval') || 60) * 1000; // Convert to milliseconds
-    let codingSeconds = 0;
     let lastActivityTimestamp = Date.now();
     let isActive = false;
+    let secondsSinceLastLog = 0; // Counter for periodic logging
+    // Track activity seconds for all activity types
+    let activitySeconds = {
+        coding: 0,
+        selection: 0,
+        navigation: 0,
+        debugSession: 0,
+        terminal: 0
+    };
+    let lastGeneralActivityTime = Date.now();
     let timer = null;
-    let loggingTimer = null;
+    let activityTimer = null; // Timer for general activities
     let currentFile = vscode.window.activeTextEditor?.document.fileName ?? null;
-    const logTime = async () => {
-        if (codingSeconds > 0 && currentFile) {
-            if (project_uuid) {
-                outputChannel.appendLine(`[TMETRIX] Logging ${codingSeconds} seconds for ${currentFile}`);
-                sendActivityRequest(project_uuid, codingSeconds, currentFile, outputChannel);
-            }
-            else {
-                outputChannel.appendLine(`[TMETRIX] No project UUID, cannot send activity request  for ${currentFile}.`);
-            }
-            codingSeconds = 0;
+    // Log activity time for all activities
+    const logActivityTime = async () => {
+        if (!project_uuid) {
+            return;
+        }
+        // Send coding activity
+        if (activitySeconds.coding > 0 && currentFile) {
+            outputChannel.appendLine(`[TMETRIX] Logging ${activitySeconds.coding} seconds of coding activity`);
+            sendActivityRequest(project_uuid, activitySeconds.coding, currentFile, outputChannel);
+            activitySeconds.coding = 0;
+        }
+        // Send selection activity
+        if (activitySeconds.selection > 0 && currentFile) {
+            outputChannel.appendLine(`[TMETRIX] Logging ${activitySeconds.selection} seconds of selection activity`);
+            sendActivityRequest(project_uuid, activitySeconds.selection, currentFile, outputChannel);
+            activitySeconds.selection = 0;
+        }
+        // Send navigation activity
+        if (activitySeconds.navigation > 0 && currentFile) {
+            outputChannel.appendLine(`[TMETRIX] Logging ${activitySeconds.navigation} seconds of navigation activity`);
+            sendActivityRequest(project_uuid, activitySeconds.navigation, currentFile, outputChannel);
+            activitySeconds.navigation = 0;
+        }
+        // Send debug activity
+        if (activitySeconds.debugSession > 0 && currentFile) {
+            outputChannel.appendLine(`[TMETRIX] Logging ${activitySeconds.debugSession} seconds of debug activity`);
+            sendActivityRequest(project_uuid, activitySeconds.debugSession, currentFile, outputChannel);
+            activitySeconds.debugSession = 0;
+        }
+        // Send terminal activity
+        if (activitySeconds.terminal > 0) {
+            outputChannel.appendLine(`[TMETRIX] Logging ${activitySeconds.terminal} seconds of terminal activity`);
+            sendActivityRequest(project_uuid, activitySeconds.terminal, currentFile || 'terminal', outputChannel);
+            activitySeconds.terminal = 0;
         }
     };
-    const stopTimer = () => {
+    const stopActivityTimer = () => {
+        // Stop coding timer
         if (timer) {
             clearInterval(timer);
             timer = null;
-            logTime();
         }
-        if (loggingTimer) {
-            clearInterval(loggingTimer);
-            loggingTimer = null;
+        // Stop general activity timer
+        if (activityTimer) {
+            clearInterval(activityTimer);
+            activityTimer = null;
         }
+        // Log all accumulated time
+        logActivityTime();
         isActive = false;
+        secondsSinceLastLog = 0; // Reset counter
+    };
+    // Track which activities are currently active
+    let activeActivities = {
+        coding: false,
+        selection: false,
+        navigation: false,
+        debugSession: false,
+        terminal: false
+    };
+    const startActivityTimer = () => {
+        lastGeneralActivityTime = Date.now();
+        if (!activityTimer) {
+            activityTimer = setInterval(() => {
+                const now = Date.now();
+                // If no activity for more than inactivity threshold, stop counting
+                if (now - lastGeneralActivityTime > inactivityThreshold) {
+                    outputChannel.appendLine(`[TMETRIX] General activity inactivity detected, stopping activity timer.`);
+                    stopActivityTimer();
+                    // Reset all active flags
+                    activeActivities = {
+                        coding: false,
+                        selection: false,
+                        navigation: false,
+                        debugSession: false,
+                        terminal: false
+                    };
+                }
+                else {
+                    // Increment counters for all active activities
+                    if (activeActivities.coding) {
+                        activitySeconds.coding++;
+                    }
+                    if (activeActivities.selection) {
+                        activitySeconds.selection++;
+                    }
+                    if (activeActivities.navigation) {
+                        activitySeconds.navigation++;
+                    }
+                    if (activeActivities.debugSession) {
+                        activitySeconds.debugSession++;
+                    }
+                    if (activeActivities.terminal) {
+                        activitySeconds.terminal++;
+                    }
+                }
+            }, 1000);
+            // Set up periodic logging for activities
+            setInterval(() => {
+                logActivityTime();
+            }, loggingInterval);
+        }
     };
     const startTimer = () => {
         isActive = true;
@@ -339,19 +427,19 @@ async function activate(context) {
                 if (now - lastActivityTimestamp > inactivityThreshold) {
                     // Inactivity detected, stop the timer and log the time.
                     outputChannel.appendLine(`[TMETRIX] Inactivity detected, stopping timer.`);
-                    stopTimer();
+                    stopActivityTimer();
                 }
                 else if (isActive) {
                     // Only increment if user is actively coding
-                    codingSeconds++;
+                    activitySeconds.coding++;
+                    secondsSinceLastLog++;
+                    // Periodic logging check
+                    if (secondsSinceLastLog >= loggingInterval / 1000) {
+                        logActivityTime();
+                        secondsSinceLastLog = 0;
+                    }
                 }
             }, 1000);
-            // Set up periodic logging even during active coding sessions
-            loggingTimer = setInterval(() => {
-                if (codingSeconds > 0) {
-                    logTime();
-                }
-            }, loggingInterval);
         }
     };
     // Listener for actual typing - this is the only event that should start the timer.
@@ -368,36 +456,152 @@ async function activate(context) {
     };
     // Listener for switching files
     const onDidChangeActiveTextEditor = (editor) => {
+        const previousFile = currentFile;
         // If we're tracking time, log it for the previous file and stop the timer
         if (isActive) {
             outputChannel.appendLine(`[TMETRIX] Editor changed, logging time for previous file.`);
-            stopTimer();
+            stopActivityTimer();
         }
         // Update the current file for the next tracking session.
         currentFile = editor?.document.fileName ?? null;
+        // Track file switch activity
+        if (project_uuid && currentFile && previousFile !== currentFile) {
+            outputChannel.appendLine(`[TMETRIX] File switched from ${previousFile} to ${currentFile}`);
+        }
         // Don't start the timer here - only actual typing should start the timer
+    };
+    // Listener for file open
+    const onDidOpenTextDocument = (document) => {
+        if (document.uri.scheme === 'file') {
+            outputChannel.appendLine(`[TMETRIX] File opened: ${document.fileName} (${document.languageId}, ${document.lineCount} lines) - Project UUID: ${project_uuid || 'not set'}`);
+        }
+    };
+    // Listener for file close
+    const onDidCloseTextDocument = (document) => {
+        if (document.uri.scheme === 'file') {
+            outputChannel.appendLine(`[TMETRIX] File closed: ${document.fileName} - Project UUID: ${project_uuid || 'not set'}`);
+        }
+    };
+    // Listener for text selection changes (throttled to avoid too many events)
+    let lastSelectionTime = 0;
+    const selectionThrottle = 2000; // Only log selections every 2 seconds
+    const onDidChangeTextEditorSelection = (e) => {
+        const now = Date.now();
+        if (e.textEditor.document.uri.scheme === 'file') {
+            const selection = e.selections[0];
+            if (!selection.isEmpty && now - lastSelectionTime > selectionThrottle) {
+                lastSelectionTime = now;
+                const selectedText = e.textEditor.document.getText(selection);
+                outputChannel.appendLine(`[TMETRIX] Text selection in ${e.textEditor.document.fileName}: ${selectedText.length} chars, lines ${selection.start.line}-${selection.end.line}`);
+                // Start tracking selection activity time
+                if (!activeActivities.selection) {
+                    activeActivities.selection = true;
+                    startActivityTimer();
+                }
+                lastGeneralActivityTime = Date.now();
+            }
+        }
+    };
+    // Listener for debug session start
+    const onDidStartDebugSession = (session) => {
+        const file = vscode.window.activeTextEditor?.document.fileName ?? 'N/A';
+        outputChannel.appendLine(`[TMETRIX] Debug session started: ${session.name} (${session.type}) in ${file}`);
+        // Start tracking debug activity time
+        if (!activeActivities.debugSession) {
+            activeActivities.debugSession = true;
+            startActivityTimer();
+        }
+        lastGeneralActivityTime = Date.now();
+    };
+    // Listener for debug session stop
+    const onDidTerminateDebugSession = (session) => {
+        const file = vscode.window.activeTextEditor?.document.fileName ?? 'N/A';
+        outputChannel.appendLine(`[TMETRIX] Debug session stopped: ${session.name} (${session.type})`);
+        // Stop tracking debug activity
+        activeActivities.debugSession = false;
+    };
+    // Listener for terminal open
+    const onDidOpenTerminal = (terminal) => {
+        outputChannel.appendLine(`[TMETRIX] Terminal opened: ${terminal.name}`);
+        // Start tracking terminal activity
+        if (!activeActivities.terminal) {
+            activeActivities.terminal = true;
+            startActivityTimer();
+        }
+        lastGeneralActivityTime = Date.now();
+    };
+    // Listener for terminal close
+    const onDidCloseTerminal = (terminal) => {
+        outputChannel.appendLine(`[TMETRIX] Terminal closed: ${terminal.name}`);
+        // Check if there are any remaining terminals
+        if (vscode.window.terminals.length === 0) {
+            activeActivities.terminal = false;
+        }
+    };
+    // Track terminal state changes (e.g., when terminal becomes active)
+    let lastTerminalStateTime = 0;
+    const terminalStateThrottle = 3000; // Only log state changes every 3 seconds
+    const onDidChangeTerminalState = (terminal) => {
+        const now = Date.now();
+        if (now - lastTerminalStateTime > terminalStateThrottle) {
+            lastTerminalStateTime = now;
+            outputChannel.appendLine(`[TMETRIX] Terminal state changed: ${terminal.name}, exit status: ${terminal.exitStatus?.code ?? 'running'}`);
+            // Update activity timestamp
+            if (activeActivities.terminal) {
+                lastGeneralActivityTime = Date.now();
+            }
+        }
+    };
+    // Track navigation through code (scrolling, viewport changes)
+    let lastNavigationTime = 0;
+    const navigationThrottle = 3000; // Only log navigation every 3 seconds
+    const onDidChangeTextEditorVisibleRanges = (e) => {
+        const now = Date.now();
+        if (e.textEditor.document.uri.scheme === 'file' && now - lastNavigationTime > navigationThrottle) {
+            lastNavigationTime = now;
+            const visibleRange = e.visibleRanges[0];
+            outputChannel.appendLine(`[TMETRIX] Navigation in ${e.textEditor.document.fileName}: viewing lines ${visibleRange.start.line}-${visibleRange.end.line} of ${e.textEditor.document.lineCount}`);
+            // Start tracking navigation activity time
+            if (!activeActivities.navigation) {
+                activeActivities.navigation = true;
+                startActivityTimer();
+            }
+            lastGeneralActivityTime = Date.now();
+        }
     };
     // Listener for window focus changes
     const onDidChangeWindowState = (e) => {
         if (e.focused) {
             // When window is re-focused, don't start the timer
             // The timer will only start again upon the next typing event
-            outputChannel.appendLine(`[TMETRIX] Window focused. Waiting for typing activity.`);
+            outputChannel.appendLine(`[TMETRIX] Window focused. Waiting for typing act.`);
         }
         else {
             // When window loses focus, log time and stop the timer if active
             if (isActive) {
                 outputChannel.appendLine(`[TMETRIX] Window lost focus, logging time.`);
-                stopTimer();
+                stopActivityTimer();
             }
         }
     };
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(onDidChangeTextDocument));
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(onDidChangeActiveTextEditor));
     context.subscriptions.push(vscode.window.onDidChangeWindowState(onDidChangeWindowState));
+    // Register new activity tracking listeners
+    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(onDidOpenTextDocument));
+    context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(onDidCloseTextDocument));
+    context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(onDidChangeTextEditorSelection));
+    context.subscriptions.push(vscode.debug.onDidStartDebugSession(onDidStartDebugSession));
+    context.subscriptions.push(vscode.debug.onDidTerminateDebugSession(onDidTerminateDebugSession));
+    context.subscriptions.push(vscode.window.onDidOpenTerminal(onDidOpenTerminal));
+    context.subscriptions.push(vscode.window.onDidCloseTerminal(onDidCloseTerminal));
+    context.subscriptions.push(vscode.window.onDidChangeTerminalState(onDidChangeTerminalState));
+    context.subscriptions.push(vscode.window.onDidChangeTextEditorVisibleRanges(onDidChangeTextEditorVisibleRanges));
+    outputChannel.appendLine('[TMETRIX] All activity listeners registered successfully');
+    outputChannel.appendLine('[TMETRIX] Tracking: file open/close, text selection, debug sessions, terminal activity, navigation');
     context.subscriptions.push({
         dispose: () => {
-            stopTimer();
+            stopActivityTimer();
             outputChannel.dispose();
         }
     });

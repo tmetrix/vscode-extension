@@ -5,10 +5,19 @@ TMetrix is a lightweight time tracking extension that automatically monitors you
 ## Features
 
 - **Automatic Time Tracking**: Tracks your active coding time without manual intervention
+- **Comprehensive Activity Tracking**: Monitors various editor activities:
+  - **Coding**: Active typing and text editing with time tracking
+  - **File Operations**: Opening and closing files
+  - **Navigation**: Scrolling and moving through code
+  - **Text Selection**: Selecting code for copying or reading
+  - **Debug Sessions**: Starting and stopping debugger
+  - **Terminal Usage**: Opening terminals and terminal state changes
+  - **File Switching**: Changing between different files
 - **Smart Inactivity Detection**: Automatically stops tracking when you're inactive
 - **Project Detection**: Intelligently identifies projects using git repositories or project markers
 - **Multi-Platform Support**: Works on Windows, Linux, and macOS
 - **File-Level Tracking**: Records which files you're working on
+- **Rich Metadata**: Sends contextual information with each activity (language, line counts, session details, etc.)
 - **Configurable**: Customize API endpoint, inactivity threshold, and logging intervals
 
 ## Requirements
@@ -33,13 +42,27 @@ This extension contributes the following command:
    - Git repository information
    - Project markers (`package.json`, `pyproject.toml`, `pom.xml`, `Cargo.toml`)
    
-2. **Activity Tracking**: The extension tracks time only when you're actively typing in files
-   - Starts timer on text changes
-   - Stops on inactivity, window blur, or file switching
+2. **Activity Tracking**: The extension tracks multiple types of activities with time measurement:
+   - **Coding Time**: Tracks time when you're actively typing in files (original functionality)
+   - **Text Selection**: Tracks time spent selecting text (e.g., for copying or reading)
+   - **Navigation**: Tracks time spent scrolling and navigating through code
+   - **Debug Sessions**: Tracks time spent in debug mode
+   - **Terminal Activity**: Tracks time spent working in terminal
    
-3. **Data Submission**: Periodically sends activity data to your TMetrix server including:
+3. **Smart Time Tracking**:
+   - Each activity type has its own independent timer
+   - Multiple activities can be tracked simultaneously
+   - Automatic inactivity detection stops timers when idle
+   - All activities send their accumulated time (in seconds) to the API
+   
+4. **Smart Throttling**: To avoid overwhelming the API, certain high-frequency activities use throttling:
+   - Text selections: 2 seconds between detections
+   - Navigation events: 3 seconds between detections
+   - Terminal state changes: 3 seconds between detections
+   
+5. **Data Submission**: Periodically sends activity data to your TMetrix server including:
    - Project ID
-   - Active coding seconds
+   - Activity time in seconds
    - Current file path
    - Editor type and OS information
 
