@@ -18,7 +18,7 @@ TMetrix is a lightweight time tracking extension that automatically monitors you
 ## Installation
 
 1. Install the extension from the VS Code Marketplace
-3. On first activation, ctrl + shift + p and enter your TMetrix API Key (http://144.31.69.55:3000)
+3. On first activation, ctrl + shift + p and enter your TMetrix API Key (https://tmetrix.site)
 4. Start coding! The extension will automatically track your time
 
 ## Commands
